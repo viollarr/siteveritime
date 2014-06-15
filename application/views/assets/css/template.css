@@ -1,0 +1,330 @@
+@charset "utf-8";
+/* CSS Document */
+@import url(http://fonts.googleapis.com/css?family=Merienda+One);
+
+*{margin:0;padding:0; outline:0; border:0;}
+.clear{clear:both;}
+
+html,body{height:100%;}
+
+body{font-family:"Trebuchet MS", Arial, Helvetica, sans-serif; color:#000; font-size:13px; background: #F1F1F1 url(../images/bg_body.png) repeat;}
+
+
+/************************ESTILO PÁGINA LOGIN ***********************************/
+#box_login{ width:350px; height:360px; margin:0 auto;
+position:absolute;
+top:50%;
+left:50%;
+margin-top:-180px;
+margin-left:-175px;
+}
+.esqueci_minha_senha{ color:#666666;}
+/************************ESTILO PÁGINA LOGIN ***********************************/
+
+
+
+#tudo{ width:1000px; margin:0 auto; background:#FFF; height: 100%; height: auto; min-height: 100%;}
+
+#header{ width:100%; height:90px; background:#CCC; margin-bottom:20px; position:relative; }
+	.logo_veritime{ font-family: 'Merienda One', cursive; font-size:60px; position:absolute; left:20px;}
+	.info_acesso{ position:absolute; top:10px; right:20px; color:#FFF;}
+	.info_acesso a{ color:#FFF; text-decoration:none;}
+	.info_acesso a:hover{ text-decoration:underline;}
+
+/************************ESTILO DO MENU ACORDION ***********************************/
+#lado_esquerdo{ float:left; width:200px; margin-right:20px; background:#99CCFF;}
+
+#menu dl {margin:0 auto; width:200px;}
+#menu  dt {background-color:#999; border-bottom:2px solid #fff; padding:5px;}
+#menu  dt a {color:#fff; text-decoration:none; display:block; padding:2px;}
+#menu dd, ul {margin:0; padding:0}
+#menu ul li {background-color:#EFEFEF; font-size:13px; list-style:none}
+#menu ul li a {color:#0B77B7; padding:5px; text-decoration:none; display:block; padding:5px;}
+#menu ul li a:hover {background-color:#DBDBDB; color:#004a77; text-decoration:none;}
+
+/************************ESTILO DO MENU ACORDION ***********************************/
+
+#container{ 
+	width: 970px; 
+	margin:0 auto;
+	padding-bottom: 80px; /*Precisa ser da mesma altura do tamanho do rodape*/
+	background:#FFF;
+	
+}
+#content{float:left; width: 750px;}
+#content h2{color:#0B77B7; margin-bottom:20px; display:inline-block;}
+.btn_voltar{
+cursor:pointer; 
+color:#fff; 
+text-decoration:none; 
+display:inline-block; 
+padding:3px 8px; 
+background:#0B77B7; 
+/*border:1px solid #0B77B7;*/
+-webkit-border-radius: 4px;
+-moz-border-radius: 4px;
+border-radius: 4px;
+float:right;
+}
+.btn_voltar:hover{background:#016098;}
+
+#footer{ 
+	position: relative;
+	margin-top: -80px; /* A mesma altura do rodapé, o valor deve ser negativo */
+	height: 80px;
+	clear:both;
+	background:#CCCCCC;
+}
+.footerbox{ width:1000px; margin:0 auto;}
+#footer p{ text-align:center; padding-top:30px;}
+
+
+.table_visualizar{width:100%;}
+.table_visualizar td{ padding:2px 4px;}
+.table_lista{width:100%;}
+.table_lista th{ text-align:left;  padding:2px 4px; color:#FFF; background:#0B77B7;}
+.table_lista td{  padding:2px 4px;}
+
+table .even{ background:#f1f1f1;}
+table .odd{ background:#e0e0e0;}
+
+.table_lista input{border: 0 !important; vertical-align: middle;}
+
+/************************ESTILO DO FORMULÁRIO ***********************************/
+
+#formstyle {
+-webkit-border-radius: 3px;
+-moz-border-radius: 3px;
+border-radius: 3px;
+border: #D1D1D1 1px solid;
+padding: 20px;
+background: #F8F8F8;
+width: 95%;
+position: relative;
+margin-bottom:20px;
+}
+
+/*#formstyle{font-family:"Trebuchet MS", Arial, Helvetica, sans-serif; font-size:13px;}*/
+#formstyle ul{ padding: 0 5px;}
+#formstyle li { list-style-type: none; margin: 0; padding: 0px;}
+#formstyle li { margin-bottom: 3px; min-height:27px; }
+#formstyle label {
+    width: 172px;
+    font-weight: bold;
+    margin-top: 3px;
+    float:left;
+}
+fieldset{
+	border: 1px solid #DDD;
+	margin-bottom:20px;
+	padding:10px;
+}
+input, select, textarea {
+	border: 1px solid #CCC;
+	padding: 4px;
+	font-size: 100%;
+	-webkit-border-radius: 3px;
+	-moz-border-radius: 3px;
+	border-radius: 3px;	
+
+}
+input:hover, input:focus, select:hover, select:focus, textarea:hover, textarea:focus  { background: #FFFFE5;}
+
+legend{
+	color: #0B77B7;
+	font-size: 16px;
+	padding: 0 5px;
+}
+textarea {
+	resize: none;
+	width:269px; 
+	margin-left:2px;
+	height:60px;
+	
+	
+}
+input[type="checkbox"]{ cursor:pointer;}
+
+label.error {
+	float:none !important;
+	width:auto !important;
+	font-weight:normal !important;
+	margin-left: 5px;
+	display: inline-block; 
+	color:#e66556; 
+	background:url(../images/icones/exclamation.png) no-repeat left center;
+	text-indent:20px;	
+}
+
+#formstyle input.error{
+	background:#ffeae8;
+	border: 1px solid #e77776;
+}
+#formstyle textarea.error{
+	background:#ffeae8;
+	border-color: #e77776;
+}
+
+#formstyle .telefone,
+#formstyle .numero,
+#formstyle .data,
+#formstyle .tag,
+#formstyle .hora{width: 95px; text-align: left;}
+#formstyle .celular{width: 100px; text-align: left;}
+#formstyle .complemento, #formstyle .cnpj{width: 120px; text-align: left;}
+#formstyle .senha{width: 100px;}
+#formstyle fieldset legend label{font-weight: normal; width: auto; float: none; margin: 0px;}
+#formstyle select.estado, #formstyle select.cidade{width: 220px;}
+
+/* Cliente */
+#formstyle .filial{margin-top: 10px; margin-bottom: 15px; border-bottom: 1px solid #DDD; padding-bottom: 15px;}
+#formstyle #mais_filial_cliente{background: url("../images/ico_plus_16.png") no-repeat; margin-left: 5px; padding-left: 22px; width: 30px; margin-bottom: 5px;}
+#formstyle #mais_filial_cliente:hover{cursor: pointer;}
+#formstyle .excluir_filial_cliente{float: right; background: url("../images/ico_cross.png") no-repeat; margin-left: 5px; padding-left: 22px; width: 30px; margin-bottom: 5px;}
+#formstyle .excluir_filial_cliente:hover{cursor: pointer;}
+
+span.error{ display: inline-block; color:#e66556; background:url(../images/ico_exclamation.png) no-repeat left center; text-indent:20px;}
+.table th.center{text-align:center;}
+.table tbody td{ padding:3px;}
+.table tbody td.center{text-align:center;}
+
+.table{border:1px solid #DFEEFF;}
+
+.table thead th{
+        background:#DFEEFF;
+		text-align:left; 
+		font-weight:bold;
+        padding:3px;
+    }
+
+.table tbody tr {
+	background:#F8F8F8;
+}
+.table tbody tr.even {
+	background:#fefefe;
+}
+.table tbody tr:hover {
+	background:#f1f1f1;
+}
+
+.contatos_parceiro{padding-left:154px; padding-bottom:15px;}
+
+
+/* BUTTONS */
+.buttons a, .buttons button{
+	display:inline-block;
+    margin:0;
+    background-color:#f5f5f5;
+    border:1px solid #dedede;
+    border-top:1px solid #eee;
+    border-left:1px solid #eee;    font-family:Tahoma, Arial, Verdana, sans-serif;
+    font-size:100%;
+    line-height:130%;
+    text-decoration:none;
+    font-weight:bold;
+    color:#565656;
+    cursor:pointer;
+    padding: 3px 10px 4px 7px; /* Links */
+	-webkit-border-radius: 3px;
+	-moz-border-radius: 3px;
+	border-radius: 3px;		
+}
+.buttons button{
+    width:auto;
+    overflow:visible;
+    padding:4px 10px 3px 7px; /* IE6 */
+}
+.buttons button[type]{
+    padding:5px 10px 5px 7px; /* Firefox */
+    line-height:17px; /* Safari */
+}
+*:first-child+html button[type]{
+    padding:4px 10px 3px 7px; /* IE7 */
+}
+.buttons button img, .buttons a img{
+    margin:0 3px -3px 0 !important;
+    padding:0;
+    border:none;
+    width:16px;
+    height:16px;
+}
+
+/* STANDARD */
+button.regular, .buttons a.regular{
+    background-color:#dff4ff;
+	color:#336699;
+	border:1px solid #c2e1ef;
+}
+button.regular:hover, .buttons a.regular:hover{
+    background-color:#336699;
+    border:1px solid #c2e1ef;
+    color:#fff;
+}
+.buttons a:active{
+    background-color:#6299c5;
+    border:1px solid #6299c5;
+    color:#fff;
+}
+/* POSITIVE */
+button.positive, .buttons a.positive{
+    color:#529214;
+	background-color:#E6EFC2;
+	border:1px solid #C6D880;
+}
+.buttons a.positive:hover, button.positive:hover{
+    background-color:#6eb02e;
+    border:1px solid #C6D880;
+    color:#fff;
+}
+.buttons a.positive:active{
+    background-color:#529214;
+    border:1px solid #529214;
+    color:#fff;
+}
+/* NEGATIVE */
+.buttons a.negative, button.negative{
+    color:#d12f19;
+	border:1px solid #fbc2c4;
+}
+.buttons a.negative:hover, button.negative:hover{
+    background:#fbe3e4;
+    border:1px solid #fbc2c4;
+    color:#d12f19;
+}
+.buttons a.negative:active{
+    background-color:#d12f19;
+    border:1px solid #d12f19;
+    color:#fff;
+}
+/************************ESTILO DO FORMULÁRIO ***********************************/
+
+
+/************************MENSAGEM ERROS ***********************************/
+#msg_controller_sucesso, #msg_controller_erro, #msg_controller_atencao, #erros_validacao_form{
+    border: 1px solid;
+    margin: 10px 0px;
+    padding:15px 10px 15px 50px;
+    background-repeat: no-repeat;
+    background-position: 10px center;
+}
+
+#msg_controller_erro {
+	color: #D8000C;
+	background-color: #FFBABA;
+    background-image:url('../images/ico_error.png');
+	margin-bottom:20px;
+}
+#msg_controller_sucesso {
+    color: #4F8A10;
+    background-color: #DFF2BF;
+    background-image:url('../images/ico_success.png');
+	margin-bottom:20px;
+}
+#msg_controller_sucesso ul{margin-left: 15px;}
+#erros_validacao_form, #msg_controller_atencao {
+    color: #9F6000;
+    background-color: #FEEFB3;
+    background-image: url('../images/ico_warning.png');
+}
+#erros_validacao_form ul, #msg_controller ul, #msg_controller_atencao ul{padding-left: 20px;}
+/************************MENSAGEM ERROS ***********************************/

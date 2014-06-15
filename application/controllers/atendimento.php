@@ -1,0 +1,980 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+
+
+
+class Atendimento extends CI_Controller {
+
+    public function __construct() {
+        parent::__construct();
+		$this->load->helper('text');
+    }
+
+    function index() {
+        $this->lista();
+    }
+
+    function lista($offset = 0) {
+        $dados = array();
+		$parms = array();
+				
+		$this->load->model("atendimento_model");
+		
+        // Pegar box da paginação.
+        $dados['paginacao'] = $this->pagination->paginacao(
+                array(
+                    'uri' => 'atendimento/lista/',
+                    'total_rows' => $this->atendimento_model->get_atendimentos($parms)->num_rows()      //$this->cliente_model->contar_todos_registros()//'5'
+                )
+        );
+		$parms["per_page"] = $this->pagination->get_per_page();
+		$parms["offset"] = $offset;
+		$parms['campo_busca'] = '';
+
+		$dados['atendimentos'] = $this->atendimento_model->get_atendimentos($parms)->result();
+		//pr("teste", $this->db->last_query());
+		
+        $dados['view'] = $this->load->view('atendimento/lista', $dados, TRUE);
+        $this->load->view('dashboard/interna', $dados);
+    }
+	
+	public function info_atendimento($idatendimento = ""){
+		$dados = array();
+		if(!empty($idatendimento)){
+			$this->load->model("atendimento_model");
+			$dados["atendimento"] =  $this->configura_atendimento_info($this->atendimento_model->get_atendimento($idatendimento));
+		}
+		
+		$this->load->view('atendimento/info_atendimento', $dados);
+	}
+	
+	public function configura_atendimento_info($atendimento = ""){
+		if(!empty($atendimento)){
+			
+			$endereco_completo = "";
+			$endereco_completo.=trim($atendimento->endereco);
+
+			if($atendimento->endereco_numero){
+				$endereco_completo.= ', '.$atendimento->endereco_numero;
+			}
+			if($atendimento->endereco_complemento){
+				$endereco_completo.= ', '.$atendimento->endereco_complemento;
+			}
+			if($atendimento->bairro){
+				$endereco_completo.= ' - '.$atendimento->bairro;
+			}
+			if($atendimento->nomecidade){
+				$endereco_completo.= ' - '.$atendimento->nomecidade;
+			}			
+			if($atendimento->uf){
+				$endereco_completo.= '/'.$atendimento->uf;
+			}
+		
+			$atendimento->endereco_completo = $endereco_completo;
+			if($atendimento->status == "nao_concluido"){
+				$atendimento->status = "não_concluído";
+			}
+			$atendimento->status = ucfirst(str_replace("_", " ", $atendimento->status));
+			
+			$atendimento->data_hora_atendimento = fdata($atendimento->data_agendada, "/").' '.substr($atendimento->hora_agendada, 0, 5);
+			
+			$atendimento->tempo_estimado = substr($atendimento->tempo_estimado, 0, 5);
+			
+			$atendimento->usuarios_atendimento = $this->trata_usuarios_atendimento($this->atendimento_model->usuarios_atendimento($atendimento->idatendimento)->result());	
+		}
+		
+		return $atendimento;	
+	}
+	
+	public function trata_usuarios_atendimento($dados_usuario_atendimento = array()){
+		//pr("teste", $dados_usuario_atendimento);
+		//if($this->session->userdata('usuario')->idusuario == 1){
+			//pr("query", $this->db->last_query());
+		//}
+		if(!empty($dados_usuario_atendimento)){
+			foreach($dados_usuario_atendimento as $funcionario){
+				if((!empty($funcionario->latitude_checkin)) && (!empty($funcionario->longitude_checkin))){
+					$details_url = "http://maps.googleapis.com/maps/api/geocode/json?latlng=".$funcionario->latitude_checkin.",".$funcionario->longitude_checkin."&sensor=false";
+					$ch = curl_init();
+					curl_setopt($ch, CURLOPT_URL, $details_url);
+					curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+					$geoloc = json_decode(curl_exec($ch), true);
+					$funcionario->endereco_completo_checkin = $geoloc['results'][0]['formatted_address'];
+				}
+								
+				if((!empty($funcionario->latitude_checkout)) && (!empty($funcionario->longitude_checkout))){
+					$details_url = "http://maps.googleapis.com/maps/api/geocode/json?latlng=".$funcionario->latitude_checkout.",".$funcionario->longitude_checkout."&sensor=false";
+					$ch = curl_init();
+					curl_setopt($ch, CURLOPT_URL, $details_url);
+					curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+					$geoloc = json_decode(curl_exec($ch), true);
+					$funcionario->endereco_completo_checkout = $geoloc['results'][0]['formatted_address'];
+				}
+				
+				$funcionario->data_hora_checkin = (!empty($funcionario->data_hora_checkin)) ? date('d/m/Y - H:i', strtotime($funcionario->data_hora_checkin)).'h' : "Nenhum check-in realizado";
+				
+				$funcionario->data_hora_checkout = (!empty($funcionario->data_hora_checkout)) ? date('d/m/Y - H:i', strtotime($funcionario->data_hora_checkout)).'h' : "Nenhum check-out realizado";
+				
+				$funcionario->duracao = (!empty($funcionario->duracao)) ? substr($funcionario->duracao, 0, -3).'h' : "-";
+			
+			}
+		}
+		return $dados_usuario_atendimento;
+	}
+	
+	public function inf_download_pdf(){
+		$conteudo_atendimento = $this->input->post('conteudo_atendimento', TRUE);	
+		
+		$html = "<html>
+			<head>
+			<meta charset='utf-8'>
+			<title>Relatório Atendimento Veritime</title>
+			<meta name='viewport' content='width=device-width, initial-scale=1.0'>
+			<style>
+			body { font-family: 'Trebuchet MS', Arial, Helvetica, sans-serif; color: #808082; font-size: 13px; }
+			h2 { font-size: 30px; line-height: 40px; }
+			h4 { font-size: 18px; line-height: 20px; }
+			h1, h2, h3, h4, h5, h6 { margin: 10px 0; font-family: inherit; font-weight: bold; line-height: 1; color: inherit; text-rendering: optimizelegibility; }
+			p { margin: 0 0 10px; }
+			table { max-width: 100%; background-color: transparent; border-collapse: collapse; border-spacing: 0; }
+			.table th, .table td { padding: 8px; line-height: 20px; text-align: left; vertical-align: top; border-top: 1px solid #dddddd; }
+			.table { width: 100%; margin-bottom: 20px; }
+			.table-condensed th, .table-condensed td { padding: 3px 5px; }
+			.table-striped tbody tr:nth-child(odd) td, .table-striped tbody tr:nth-child(odd) th { background-color: #f9f9f9; }
+			strong { font-weight: bold; }
+			</style>
+			</head>
+			<body>
+			";
+		
+		$html .= $conteudo_atendimento;
+		
+		$html .="</body></html>";
+		
+		pr("conteudo", $html);
+	}
+
+	public function busca($offset = 0) {
+        $dados = array();
+		$parms = array();
+				
+		$this->load->model("atendimento_model");
+		//$exibe_finalizados = $this->input->post('exibe_finalizados'); //se tiver checado o valor é "sim"
+
+		$parms['campo_busca'] = $this->input->post('campo_busca', TRUE);		
+		$parms['campo_dias'] = $this->input->post('campo_dias', TRUE);
+		$parms['periodo_data_range'] = $this->input->post('periodo_data_range', TRUE);
+		$parms['from'] = $this->input->post('from', TRUE);
+		$parms['to'] = $this->input->post('to', TRUE);
+				
+        // Pegar box da paginação.
+		$dados['paginacao'] = '';
+
+        if ( ((!empty($parms['campo_busca']))) or ((!empty($parms['campo_dias']))) or ((!empty($parms['periodo_data_range'])))){
+            $dados['atendimentos'] = $this->atendimento_model->get_atendimentos($parms)->result();
+
+			$dados['view'] = $this->load->view('atendimento/lista', $dados, TRUE);
+            $this->load->view('dashboard/interna', $dados);
+        } else {
+            // Redireciona para a tela inicial do Dashboard.
+           redirect('atendimento/');
+        }
+    }
+
+	function enviar_notificacao(){
+        $this->load->model("atendimento_model");
+		$idatendimento = $this->input->post('idatendimento', TRUE);
+
+		$notificacao = $this->atendimento_model->marcar_notificacao($idatendimento);		
+		
+		if ($notificacao) {
+			  $this->session->set_flashdata('msg_controller_sucesso', 'A Notificação foi envida com sucesso. O funcionário receberá assim que os dados forem sincronizados.');
+			  redirect('/atendimento/lista/');
+		}else{
+			$this->session->set_flashdata('msg_controller_erro', 'A Notificação <strong>não</strong> foi enviada.');
+			redirect('/dashboard/mensagem/');		
+		}		
+		
+	}
+
+
+	public function consultaApp($id_usuario,$id_empresa){
+		$this->load->model("atendimento_model");
+        $this->db->query('SELECT * FROM '.$this->db->dbprefix.'atendimento');
+        $dados['atendimentos'] = $this->db->get()->result();
+	}
+
+    public function cadastro() {
+		
+        //pr('session(idestado)', $this->input->post('idestado'));
+        
+		$this->load->model("atendimento_model");
+		$this->load->model("cliente_model");
+		$this->load->model("usuario_model");
+		$this->load->model("estado_model");
+
+        $dados = array();
+		$dados["clientes"] = $this->cliente_model->get_clientes_by_empresa();
+		$dados["estados"] = $this->estado_model->get_estados();
+		
+		$idestado_selecionado = $this->input->post('idestado');				
+		
+		if ($idestado_selecionado){
+			$this->load->model("cidade_model");
+			$dados["cidades"] = $this->cidade_model->get_cidade_by_estado($idestado_selecionado);
+		}
+				
+        $dados['menu_selecionado'] = 'menu_atendimentos';
+        $dados['view'] = $this->load->view('atendimento/cadastro', $dados, TRUE);
+        $this->load->view('dashboard/interna', $dados);
+    }
+
+    /**
+     * Valida os dados do formulário e chama o model para salvar no banco de dados os dados do novo registro.
+     */
+    public function insert() {
+
+
+        // 1º VALIDAR O FORMULÁRIO.
+		//$this->form_validation->set_rules('titulo', 'Título', 'required');
+
+        if ($this->validar_form()) :
+            $this->load->model("atendimento_model");
+
+
+			/*Código para capturar a latitude e longitude do endereço informado.*/
+			$this->load->model("cidade_model");
+			$endereco = $this->input->post('endereco');
+			$endereco_numero = $this->input->post('endereco_numero');
+			$bairro = $this->input->post('bairro');
+			$cidade = $this->cidade_model->get_cidade_by_id($this->input->post('idcidade'));
+			$nome_cidade = $cidade->nome;
+			$address = $endereco.' '.$endereco_numero.' '.$bairro.' '.$nome_cidade;
+			$address = convert_accented_characters(str_replace(" ", "+", $address));
+			$json = file_get_contents("http://maps.google.com/maps/api/geocode/json?address=$address&sensor=false");//&region=$region
+			$json = json_decode($json);
+			$latitude = $json->{'results'}[0]->{'geometry'}->{'location'}->{'lat'};
+			$longitude = $json->{'results'}[0]->{'geometry'}->{'location'}->{'lng'};
+
+			//print 'http://maps.google.com/maps/api/geocode/json?address='.$address.'&sensor=false';
+
+			if (empty($latitude)){
+				$latitude = 0;
+				$longitude = 0;
+			}
+				
+/*			var_dump("http://maps.google.com/maps/api/geocode/json?address=$address&sensor=false");
+			exit;
+*/            // 2º CHAMAR MÉTODO POST() DO MODELO.
+            $this->atendimento_model->post($latitude, $longitude);
+			
+				$idatendimento = $this->atendimento_model->insert();
+				
+				if ($idatendimento > 0):
+				
+				/*PARTE PARA EMVIAR ASSINATURA PARA AS PESSOAS*/
+					$titulo_do_atendimento = $this->input->post('titulo');
+					$tem_contra_senha = $this->input->post('tem_contra_senha');
+					$contra_senha = $this->input->post('contra_senha');
+					$emails_assinatura = $this->input->post('emails_assinatura');
+					
+					if ((!empty($tem_contra_senha)) and ($tem_contra_senha == 'sim')){
+						if ( (!empty($contra_senha)) and (!empty($emails_assinatura)) ){
+							
+							$email_veritime = 'equipe@veritime.com.br';
+							$assunto = "Envio de assinatura de atendimento";
+							$nome_da_empresa = $this->session->userdata('usuario')->nome_empresa;
+							$email_da_pessoa_logada = $this->session->userdata('usuario')->email;
+
+							$mensagem = '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+							<html>
+							<head><title>Veritime</title></head>
+							<body>
+							<table border="0">
+							  <tr>
+								<td>
+									<p>Sua assinatura para o Check-out do atendimento '.$titulo_do_atendimento.' é: '.$contra_senha.'</p>
+								</td>
+							  </tr>
+							</table>
+							</div>	
+							</body>
+							</html>		
+							';		
+							$headers = "From: ".$nome_da_empresa."  <".$email_da_pessoa_logada.">\n";
+							$headers .= "MIME-Version: 1.1\n";
+							$headers .= "Content-type: text/html; charset=utf-8\n"; 
+							$headers .= "X-Priority: 3\n";
+							
+							if(strpos($emails_assinatura,";")){
+								$emails_separados = explode(";", $emails_assinatura);
+								foreach($emails_separados as $email_recebe_assinatura){
+									@mail($email_recebe_assinatura, $assunto, $mensagem, $headers,"-r".$email_veritime);	
+								}
+							}else{
+								@mail($emails_assinatura, $assunto, $mensagem, $headers,"-r".$email_veritime);	
+							}
+							
+						}
+					}
+				
+				
+					$this->session->set_flashdata('msg_controller_sucesso', 'Atendimento cadastrado com sucesso.');
+					redirect('/atendimento/lista/');
+				else:
+					$this->session->set_flashdata('msg_controller_erro', 'Cadastro de atendimento <strong>não</strong> efetuado.');
+					redirect('/dashboard/mensagem/');
+				endif;
+				
+        else:
+            $this->cadastro();
+        endif;
+    }
+
+    public function editar() {
+        $idatendimento = $this->input->post('idatendimento');
+
+		$this->load->model("cliente_model");
+		$this->load->model("estado_model");
+		$this->load->model("usuario_model");
+		
+		
+        // Carregando o model de atendimento.
+        $this->load->model("atendimento_model");
+        $atendimento = $this->atendimento_model->get_by_id($idatendimento);
+		
+		if(!empty($atendimento->idtag)){
+			$tag = $this->atendimento_model->get_tag_by_id($atendimento->idtag);
+			$atendimento->idtag = $tag->tag;
+		}
+
+
+        if (!empty($atendimento)) {
+            // Passa os dados para o formulário de edição (view).
+			$dados = array();
+            $dados['atendimento'] = $atendimento;
+			$dados["contatos"] = $this->cliente_model->get_contatos_by_empresa();
+			$dados["clientes"] = $this->cliente_model->get_clientes_by_empresa();
+			$dados["funcionarios_alocados"] = $this->usuario_model->get_usuarios_by_atendimento($idatendimento);
+			$dados["estados"] = $this->estado_model->get_estados();
+
+			
+            $idestado_selecionado = $atendimento->idestado;
+			
+			
+            if ($idestado_selecionado) {
+                $this->load->model("cidade_model");
+                $dados["cidades"] = $this->cidade_model->get_cidade_by_estado($idestado_selecionado);
+            }
+
+            $dados['view'] = $this->load->view('atendimento/editar', $dados, TRUE);
+            $this->load->view('dashboard/interna', $dados);
+        } else {
+            // Redireciona para a tela inicial do Dashboard.
+            //redirect('/dashboard/');
+        }
+    }
+
+
+	public function reagendar() {
+        $idatendimento = $this->input->post('idatendimento');
+
+		$this->load->model("cliente_model");
+		//$this->load->model("estado_model");
+		$this->load->model("usuario_model");
+		
+		
+        // Carregando o model de atendimento.
+        $this->load->model("atendimento_model");
+        $atendimento = $this->atendimento_model->get_by_id($idatendimento);
+		
+		if(!empty($atendimento->idtag)){
+			$tag = $this->atendimento_model->get_tag_by_id($atendimento->idtag);
+			$atendimento->idtag = $tag->tag;
+		}
+
+
+        if (!empty($atendimento)) {
+            // Passa os dados para o formulário de edição (view).
+			$dados = array();
+            $dados['atendimento'] = $atendimento;
+			$dados["clientes"] = $this->cliente_model->get_clientes_by_empresa();
+			$dados["funcionarios_alocados"] = $this->usuario_model->get_usuarios_by_atendimento($idatendimento);
+			//$dados["estados"] = $this->estado_model->get_estados();
+
+			
+            //$idestado_selecionado = $atendimento->idestado;
+			
+			
+            /*if ($idestado_selecionado) {
+                $this->load->model("cidade_model");
+                $dados["cidades"] = $this->cidade_model->get_cidade_by_estado($idestado_selecionado);
+            }*/
+            $dados['view'] = $this->load->view('atendimento/reagendar', $dados, TRUE);
+            $this->load->view('dashboard/interna', $dados);
+        } else {
+            // Redireciona para a tela inicial do Dashboard.
+            //redirect('/dashboard/');
+        }
+    }
+
+
+    /**
+     * Valida os dados do formulário e chama o model para salvar no banco de dados os dados atualizados.
+     */
+    public function update() {
+
+        $idatendimento = $this->input->post('idatendimento');
+
+        if (!empty($idatendimento)) {
+            // 1º VALIDAR O FORMULÁRIO.
+            if ($this->validar_form()) {
+                $this->load->model("atendimento_model");
+				
+				/*Código para capturar a latitude e longitude do endereço informado.*/
+				$this->load->model("cidade_model");
+				$endereco = $this->input->post('endereco');
+				$endereco_numero = $this->input->post('endereco_numero');
+				$bairro = $this->input->post('bairro');
+				$cidade = $this->cidade_model->get_cidade_by_id($this->input->post('idcidade'));
+				$nome_cidade = $cidade->nome;
+				//$address = $endereco.' '.$endereco_numero.' '.$nome_cidade;
+				$address = $endereco.' '.$endereco_numero.' '.$bairro.' '.$nome_cidade;
+				$address = convert_accented_characters(str_replace(" ", "+", $address));
+				$json = file_get_contents("http://maps.google.com/maps/api/geocode/json?address=$address&sensor=false");//&region=$region
+				$json = json_decode($json);
+				$latitude = $json->{'results'}[0]->{'geometry'}->{'location'}->{'lat'};
+				$longitude = $json->{'results'}[0]->{'geometry'}->{'location'}->{'lng'};
+
+				if (empty($latitude)){
+					$latitude = 0;
+					$longitude = 0;
+				}				
+				
+				$novo_atendimento = $this->input->post('novo_atendimento');
+				
+				// 2º CHAMAR MÉTODO POST() DO MODELO.
+				$this->atendimento_model->post($latitude, $longitude);
+				
+
+                // 3º CHAMAR MÉTODO UPDATE() DO MODELO.
+                $atualizado = $this->atendimento_model->update($idatendimento);
+
+                if ($atualizado) {
+					
+					/*PARTE PARA EMVIAR ASSINATURA PARA AS PESSOAS*/
+					$titulo_do_atendimento = $this->input->post('titulo');
+					$tem_contra_senha = $this->input->post('tem_contra_senha');
+					$contra_senha = $this->input->post('contra_senha');
+					$emails_assinatura = $this->input->post('emails_assinatura');
+					
+					if ((!empty($tem_contra_senha)) and ($tem_contra_senha == 'sim')){
+						if ( (!empty($contra_senha)) and (!empty($emails_assinatura)) ){
+							
+							$email_veritime = 'equipe@veritime.com.br';
+							$assunto = "Envio de assinatura de atendimento";
+							$nome_da_empresa = $this->session->userdata('usuario')->nome_empresa;
+							$email_da_pessoa_logada = $this->session->userdata('usuario')->email;
+
+							$mensagem = '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+							<html>
+							<head><title>Veritime</title></head>
+							<body>
+							<table border="0">
+							  <tr>
+								<td>
+									<p>Sua assinatura para o Check-out do atendimento '.$titulo_do_atendimento.' é: '.$contra_senha.'</p>
+								</td>
+							  </tr>
+							</table>
+							</div>	
+							</body>
+							</html>		
+							';		
+							$headers = "From: ".$nome_da_empresa."  <".$email_da_pessoa_logada.">\n";
+							$headers .= "MIME-Version: 1.1\n";
+							$headers .= "Content-type: text/html; charset=utf-8\n"; 
+							$headers .= "X-Priority: 3\n";
+							
+							if(strpos($emails_assinatura,";")){
+								$emails_separados = explode(";", $emails_assinatura);
+								foreach($emails_separados as $email_recebe_assinatura){
+									@mail($email_recebe_assinatura, $assunto, $mensagem, $headers,"-r".$email_veritime);	
+								}
+							}else{
+								@mail($emails_assinatura, $assunto, $mensagem, $headers,"-r".$email_veritime);	
+							}
+							
+						}
+					}
+					
+					
+                 	if($novo_atendimento == 'sim'){
+						$this->atendimento_model->marcar_notificacao($idatendimento);
+					}
+					
+                    $this->session->set_flashdata('msg_controller_sucesso', 'Atendimento atualizado com sucesso.');
+                    redirect('/atendimento/lista/');
+                } else {
+                    $this->session->set_flashdata('msg_controller_erro', 'Atualização <strong>não</strong> efetuada.');
+                    redirect('/dashboard/mensagem/');
+                }
+            } else {
+                // Retorna para o formulário de edição caso não passe na validação do form.
+                $this->session->set_userdata('idatendimento', $idatendimento);
+                $this->editar();
+            }
+        } else {
+            // Redireciona para a tela principal caso não tenha nenhum ID preenchido.
+            redirect('/dashboard/');
+        }
+    }
+
+
+	public function update_reagendar() {
+
+        $idatendimento = $this->input->post('idatendimento');
+
+        if (!empty($idatendimento)) {
+            // 1º VALIDAR O FORMULÁRIO.
+            if ($this->validar_form_reagendar()) {
+                $this->load->model("atendimento_model");
+
+				$latitude = $this->input->post('latitude');
+				$longitude = $this->input->post('longitude');
+				$novo_atendimento = $this->input->post('novo_atendimento');
+
+				// 2º CHAMAR MÉTODO POST() DO MODELO.
+				$this->atendimento_model->post($latitude, $longitude);
+
+                // 3º CHAMAR MÉTODO UPDATE() DO MODELO.
+                $atualizado = $this->atendimento_model->update($idatendimento);
+
+				
+                if ($atualizado) {
+                 	if($novo_atendimento == 'sim'){
+						$this->atendimento_model->marcar_notificacao($idatendimento);
+					}
+					
+                    $this->session->set_flashdata('msg_controller_sucesso', 'Atendimento reagendado com sucesso.');
+                    redirect('/atendimento/lista/');
+                } else {
+                    $this->session->set_flashdata('msg_controller_erro', 'Reagendamento <strong>não</strong> efetuado.');
+                    redirect('/dashboard/mensagem/');
+                }
+            } else {
+                // Retorna para o formulário de edição caso não passe na validação do form.
+                $this->session->set_userdata('idatendimento', $idatendimento);
+                $this->reagendar();
+            }
+        } else {
+            // Redireciona para a tela principal caso não tenha nenhum ID preenchido.
+            redirect('/dashboard/');
+        }
+    }	
+	
+	
+
+	public function excluir() {
+		$this->load->model("atendimento_model");
+		
+		$idregistro = $this->input->post('idatendimento', TRUE);
+		$excluido = $this->atendimento_model->delete($idregistro);
+		
+		if ($excluido) {
+			$this->session->set_flashdata('msg_controller_sucesso', 'Atendimento deletado com sucesso.');
+			redirect('atendimento/lista/');
+
+		}else{
+			$this->session->set_flashdata('msg_controller_erro', 'Exclusão <strong>não</strong> efetuada.');
+			redirect('atendimento/lista/');
+		}  		
+	}	
+	
+    /**
+     * Retonrar endereco principal para o local de atendimento.
+     */
+	public function getEnderecoPrincipal() {
+
+        // Registros que serão exibidos.
+		$conteudo_cli = $this->input->post('conteudo_cli');
+		$tipo = $this->input->post('tipo');
+		
+		$idempresa = $this->session->userdata('usuario')->idempresa;
+		
+        $this->db->select('idcliente, endereco, endereco_numero, endereco_complemento, bairro, idcidade, idestado, pontos_referencias');
+		$this->db->from('vt_cliente');
+		if($tipo == "id"){
+			$this->db->where("idcliente = '$conteudo_cli'");
+		}else if($tipo == "texto"){
+			$conteudo_cli = addslashes($conteudo_cli);
+			$this->db->where("nome = '$conteudo_cli'");
+		}
+		$this->db->where("idempresa = '$idempresa'");
+        $endereco = $this->db->get()->row();
+		$cliente = '';
+		if(!empty($endereco)){
+			$cliente .= 
+				$endereco->endereco."|".
+				$endereco->endereco_numero."|".
+				$endereco->endereco_complemento."|".
+				$endereco->bairro."|".
+				$endereco->idestado."|".
+				$endereco->idcidade."|".
+				$endereco->pontos_referencias;
+				
+			$this->db->select('idcliente_filial');
+			$this->db->from('vt_cliente_filial');
+			$this->db->where("idcliente = '$endereco->idcliente'");
+			$endereco_filial = $this->db->get()->result();
+			
+			foreach($endereco_filial AS $filial){
+				$cliente .= "|".$filial->idcliente_filial;
+			}
+		}
+
+		echo $cliente;
+	}	
+
+    /**
+     * Retonrar endereco da filial para o local de atendimento.
+     */
+	public function getEnderecoFilial() {
+
+        // Registros que serão exibidos.
+		$idcliente_filial = $this->input->post('idcliente_filial');
+        $this->db->select('endereco, endereco_numero, endereco_complemento, bairro, idcidade, idestado, pontos_referencias');
+		$this->db->from('vt_cliente_filial');
+		$this->db->where("idcliente_filial = '$idcliente_filial'");
+        $endereco_filial = $this->db->get()->row();
+		$filial = '';
+		if(!empty($endereco_filial)){
+			$filial .=  
+				$endereco_filial->endereco."|".
+				$endereco_filial->endereco_numero."|".
+				$endereco_filial->endereco_complemento."|".
+				$endereco_filial->bairro."|".
+				$endereco_filial->idestado."|".
+				$endereco_filial->idcidade."|".
+				$endereco_filial->pontos_referencias;
+		}
+			
+		echo $filial;
+	}
+	
+    /**
+     * Retorna o id e nome do usuário para preenchimento do autocomplete.
+     */
+	public function getIdNomeUsuario($nomeUser){
+		
+		$nomeUser = urldecode($nomeUser);
+		$this->load->model("usuario_model");
+		$usuario = $this->usuario_model->get_by_id_nome($nomeUser);
+		//pexit("last_query", $this->db->last_query());
+		echo $usuario;
+	}
+	
+    /**
+     * Retorna o id e nome do usuário para preenchimento do autocomplete.
+     */
+	public function getIdNomeCliente($nomeCliente){
+	
+		$nomeCliente = urldecode($nomeCliente);
+		$this->load->model("cliente_model");
+		$cliente = $this->cliente_model->get_by_id_nome($nomeCliente);
+		echo $cliente;
+	}
+	
+	    /**
+     * Retorna o id e nome do usuário para preenchimento do autocomplete.
+     */
+	public function getIdNomeResponsavel($nomeContato, $tipo = "", $conteudo_cliente = ""){
+		
+		$nomeContato = urldecode($nomeContato);
+		
+		$conteudo_cliente = urldecode($conteudo_cliente);
+
+		if($tipo == "texto"){
+			$a_buscar = "AND c.nome = '".$conteudo_cliente."'";
+		}else if($tipo == "id"){
+			$a_buscar = "AND cc.idcliente = '$conteudo_cliente'";
+		}
+		//pexit("teste2", $a_buscar);
+		
+		$idempresa = $this->session->userdata('usuario')->idempresa;
+		
+		$contato = $this->db->query("SELECT cc.idcliente_contato, cc.contato_responsavel, cc.contato_email FROM ".$this->db->dbprefix."cliente_contato as cc, ".$this->db->dbprefix."cliente as c WHERE cc.idcliente = c.idcliente ".$a_buscar." AND cc.contato_responsavel = '".$nomeContato."' AND idempresa = ".$idempresa." AND ativo = 'sim' ")->row();
+		
+		
+		//$this->load->model("cliente_model");
+		//$contato = $this->cliente_model->get_by_id_nome_contato($nomeContato);
+
+		echo json_encode($contato);
+	}
+	
+	
+	
+    /**
+     * Retorna um json com (pass true ou false) para a verificação de usuário em outros atendimentos.
+	 * Se for true ja passa também no json o texto correto e quais usuarios que estaria alocado em outro atendimento no mesmo dia e horario
+     */
+	public function getValidacaoUser($iduser, $data, $hora, $tempo, $nome, $idatendimento = NULL){
+	
+		$iduser = explode("%383",$iduser);
+		$contIds = count($iduser);
+		$nomes = explode("%383",$nome);
+		$this->load->model("usuario_model");
+		$nomeTexto = "";
+		$numPlural = 0;
+		$texto = "";
+
+		for($i = 0; $i < ($contIds-1); $i++){
+			$usuarios = $this->usuario_model->get_by_valida($iduser[$i], $idatendimento);
+			$contador = 0;
+			foreach($usuarios as $k => $usuario){
+				$formatDataInformado =  explode("_", $data);
+				$formatHoraInformado = explode("_",$hora);
+				$formatTempoInformado = explode("_",$tempo);
+				$formatDataBanco =  explode("-", $usuario->data_agendada);
+				$formatHoraBanco = explode(":",$usuario->hora_agendada);
+				$formatTempoBanco = explode(":",$usuario->tempo_estimado);
+				$mikrotime_informado = mktime($formatHoraInformado[0], $formatHoraInformado[1], 0, $formatDataInformado[0], $formatDataInformado[1], $formatDataInformado[2]);
+				$mikrotime_informado_tempo = mktime(($formatHoraInformado[0]+$formatTempoInformado[0]), ($formatHoraInformado[1]+$formatTempoInformado[1]), 0, $formatDataInformado[0], $formatDataInformado[1], $formatDataInformado[2]);				
+				$mikrotime_banco = mktime($formatHoraBanco[0], $formatHoraBanco[1], $formatHoraBanco[2], $formatDataBanco[1], $formatDataBanco[2], $formatDataBanco[0]);
+				$mikrotime_banco_tempo = mktime(($formatHoraBanco[0]+$formatTempoBanco[0]), ($formatHoraBanco[1]+$formatTempoBanco[1]), $formatHoraBanco[2], $formatDataBanco[1], $formatDataBanco[2], $formatDataBanco[0]);
+					
+				// if que verifica se a data informada para cada usuario é iguala  do banco para outros atendimentos, se esta em algum intervalo de tempo entra as datas dos atendimentos dos usuarios no banco
+				// ou se ele é anterior a data do banco mais o tempo estimado é igual ou superior as datas do banco			
+				if((($mikrotime_informado >= $mikrotime_banco) && ($mikrotime_informado <= $mikrotime_banco_tempo)) || (($mikrotime_informado_tempo >= $mikrotime_banco)&&($mikrotime_informado_tempo <= $mikrotime_banco_tempo)) || (($mikrotime_informado < $mikrotime_banco)&&($mikrotime_informado_tempo > $mikrotime_banco_tempo))){
+					$usuario->valida = true;
+					$contador++;
+					$numPlural++;
+					
+				}
+				else{
+					$usuario->valida = false;
+				}
+			}
+			if($contador > 0){
+				$nome = urldecode($nomes[$i]);
+				$nome = str_replace("_"," ", $nome);
+				$nomeTexto .= "- ".$nome."\n";	
+			}
+		}
+		if($numPlural == 1){
+			$texto .= "O funcionário:\n\n";	
+		}
+		else{
+			$texto .= "Os funcionários:\n\n";
+		}
+		$nomeTexto .="\nJá encontra-se alocado em outro atendimento no mesmo dia e horário.\nMesmo assim deseja prosseguir ?";
+		
+		if($numPlural>0){
+			$passou = true;	
+			$nomeTexto = $texto.$nomeTexto;	
+		}
+		else{
+			$passou = false;
+			$nomeTexto = '';	
+		}
+		
+		$result = array("texto" => $nomeTexto, "pass" => $passou);
+		echo json_encode($result);
+	}
+
+    /**
+     * Verifica a possibilidade de exclusão de um funcionário do atendimento.
+	 * return 
+	 * TRUE 	=> pode excluir
+	 * FALSE 	=> não pode excluir
+     */
+	public function vericarExclusaoFuncionarioAtendimento($idusuario, $idatendimento){
+	
+		$idusuario		= explode("_",$idusuario);
+		$idusuario		= (int) $idusuario[1];
+		$idatendimento 	= (int) $idatendimento;
+		$this->load->model("usuario_model");
+		$usuario_ex = $this->usuario_model->get_usuarios_by_atendimento_exclusao($idusuario, $idatendimento);
+		echo $usuario_ex;
+	}
+	
+    /**
+     * Verifica a inclusão de um funcionário no atendimento.
+	 * return 
+	 * TRUE 	=> inclui sem problemas
+	 * FALSE 	=> exibe alerta que o usuario ja esta cadastrado em outro atendimento nesse mesmo dia e horário.
+     */
+	public function vericarInclusaoFuncionarioAtendimento($idusuario){
+	
+		$idusuario		= (int) $idusuario;
+		$this->load->model("usuario_model");
+		$usuario_in = $this->usuario_model->get_usuarios_by_atendimento_inclusao($idusuario);
+		echo $usuario_in;
+	}
+	
+	
+	
+	
+	function mapa_local($idatendimento){
+		$this->load->model("atendimento_model");
+		$dados["atendimento"] = $this->atendimento_model->get_local_atendimento($idatendimento);
+		$this->load->view('atendimento/mapa_local', $dados);
+	}
+	
+	
+
+    /**
+     * O controller deve validar o formulário antes de salvar no banco de dados.
+     */
+    private function validar_form() {
+		
+        $this->form_validation->set_rules('titulo', 'Título', 'required');
+		$this->form_validation->set_rules('tag');
+		$this->form_validation->set_rules('campo_responsavel', 'campo_responsavel');
+		$this->form_validation->set_rules('nome_responsavel', 'Responsavel', 'callback_valida_responsavel');
+		/* Alterado por Victor, depois por lincoln*/
+		//$this->form_validation->set_rules('idcliente', 'Cliente', 'required');
+		//$this->form_validation->set_rules('cliente_alocado', 'Cliente', 'required');
+		$this->form_validation->set_rules('campo_cliente', 'campo_cliente');
+		$this->form_validation->set_rules('cliente_alocado', 'Cliente', 'callback_valida_cliente');
+		/* FIM */
+		
+		$this->form_validation->set_rules('descricao');
+		$this->form_validation->set_rules('data_agendada', 'Data agendada', 'required|callback_valida_data');
+		$this->form_validation->set_rules('hora_agendada', 'Hora agendada', 'required');
+		$this->form_validation->set_rules('tempo_estimado', 'Tempo estimado', 'required');
+		$this->form_validation->set_rules('prioridade', 'Prioridade', 'required');
+		$this->form_validation->set_rules('status', 'Status', 'required');
+		$this->form_validation->set_rules('tem_contra_senha', 'Possui contra-senha?', 'required');
+		$this->form_validation->set_rules('endereco', 'Endereço', 'required');
+		$this->form_validation->set_rules('endereco_numero');
+		$this->form_validation->set_rules('endereco_complemento');		
+		$this->form_validation->set_rules('bairro', 'Bairro', 'required');
+		$this->form_validation->set_rules('idestado', 'Estado', 'required');
+		$this->form_validation->set_rules('idcidade', 'Cidade', 'required');
+		$this->form_validation->set_rules('contra_senha');
+		$this->form_validation->set_rules('emails_assinatura');
+		$this->form_validation->set_rules('meios_transportes');
+		$this->form_validation->set_rules('pontos_referencias');
+		$this->form_validation->set_rules('campo_funcionario', 'campo_funcionario', 'callback_valida_funcinario');
+		$this->form_validation->set_rules('funcionarios_alocados[]');
+		$this->form_validation->set_rules('novo_atendimento');
+		
+        return $this->form_validation->run();
+    }
+	
+	//função para verificar se o responsavel existe e se está preenchido
+    public function valida_responsavel() {
+        //recebendo variaveis login e login atual
+        $campo_responsavel = $this->input->post('campo_responsavel');
+        $nome_responsavel = $this->input->post('nome_responsavel');
+        if (!empty($campo_responsavel)) {
+			$this->load->model("cliente_model");
+			$retorno = json_decode($this->cliente_model->get_by_id_nome_contato($campo_responsavel));
+
+			if(empty($retorno)){
+				$this->form_validation->set_message('valida_responsavel', "O campo <strong>Responsavel</strong> é invalido.");
+				return false;
+			}else{
+				return true;
+			}
+        } else {
+                return true;
+        }
+    }	
+	
+	//função para verificar se a data é uma data valida
+    public function valida_data() {
+        $data_agendada = fdata($this->input->post('data_agendada'), "-");
+		$hora_agendada = $this->input->post('hora_agendada');
+		$data_hoje = date("Y-m-d");
+		
+		$data_anterior = $this->input->post('data_anterior');
+		$hora_anterior = substr($this->input->post('hora_anterior'), 0, 5);
+		
+		if(($data_anterior == $data_agendada) && ($hora_anterior == $hora_agendada)){
+			return true;
+		}
+		
+		if($data_agendada <= $data_hoje){
+			if(!empty($hora_agendada)){
+				$hora_agendada = str_replace(":", "", $hora_agendada);
+				$hora_hoje = date("Hi");
+				//pexit("test", $hora_hoje);
+				if(($data_agendada != $data_hoje) || (($data_agendada == $data_hoje) && ($hora_agendada <= $hora_hoje))){
+					$this->form_validation->set_message('valida_data', "Não é possivel cadastrar um atendimento com data retroativa. Verifique os campos <strong>Data agendada</strong> e <strong>Hora agendada</strong>");
+					return false;
+				}else{
+					return true;
+				}
+			}
+		}else{
+			return true;
+		}
+		
+    }	
+	
+	//função para verificar se o cliente existe e se está preenchido
+    public function valida_cliente() {
+        //recebendo variaveis login e login atual
+        $campo_cliente = $this->input->post('campo_cliente');
+        $cliente_alocado = $this->input->post('cliente_alocado');
+        if (!empty($campo_cliente)) {
+			$this->load->model("cliente_model");
+			$retorno = json_decode($this->cliente_model->get_by_id_nome($campo_cliente));
+
+			if(empty($retorno)){
+				$this->form_validation->set_message('valida_cliente', "O campo <strong>Cliente</strong> é invalido.");
+				return false;
+			}else{
+				return true;
+			}
+        } else {
+            if (empty($cliente_alocado)) {
+				$this->form_validation->set_message('valida_cliente', "O campo <strong>Cliente</strong> é necessário.");
+				return false;
+            } else {
+                return true;
+            }
+        }
+    }
+		
+	//função para verificar se o funcionario/colaborador está preenchido, caso esteja verifica se existe
+    public function valida_funcinario() {
+        //recebendo variaveis login e login atual
+        $campo_funcionario = $this->input->post('campo_funcionario');
+        $cliente_alocado = $this->input->post('cliente_alocado');
+        if (!empty($campo_funcionario)) {
+			$this->load->model("usuario_model");
+			$retorno = json_decode($this->usuario_model->get_by_id_nome($campo_funcionario));
+
+			if(empty($retorno)){
+				$this->form_validation->set_message('valida_funcinario', "O campo <strong>Colaborador</strong> de <strong>Equipe Externa</strong> é invalido.");
+				return false;
+			}else{
+				return true;
+			}
+        } else {
+           return true;  
+        }
+    }
+	
+
+    private function validar_form_reagendar() {
+		
+		$this->form_validation->set_rules('data_agendada', 'Data agendada', 'required');
+		$this->form_validation->set_rules('hora_agendada', 'Hora agendada', 'required');
+		$this->form_validation->set_rules('tempo_estimado', 'Tempo estimado', 'required');
+		$this->form_validation->set_rules('funcionarios_alocados[]');
+		
+        return $this->form_validation->run();
+    }	
+	
+
+}
+
+/* End of file atendimento.php */
+/* Location: ./application/controllers/atendimento.php */
